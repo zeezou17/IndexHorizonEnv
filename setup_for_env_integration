@@ -1,0 +1,101 @@
+1. Copy evaluate_dopamine.sh and paste and rename the file asz evaluate_dopamine_DBSE.sh
+	In this file rename all the paths containing CARTPOLE and replace them with dbse and create the appropriate folders.
+	CHANGES:
+- results/dbse/runtime
+- experiments/dbse/dopamine/*.gin
+- results/dbse/
+- experiments/dbse/dopamine
+
+
+source ~/miniconda3/etc/profile.d/conda.sh
+
+echo "--- STARTING DOPAMINE EXPERIMENTS ---"
+conda activate dopamine-env
+echo
+echo "--- STARTING DOPAMINE DBSE EXPERIMENTS ---"
+mkdir -p results/dbse/runtime
+echo
+for fullfile in experiments/dbse/dopamine/*.gin; do 
+    filename=$(basename -- "$fullfile")
+    experiment="${filename%.*}"
+    echo "--- STARTING EXPERIMENT ${experiment} --- "
+    bash ./scripts/clean_caches.sh
+    python src/dopamine/run_evaluation.py --base_dir="results/dbse/" --gin_files="experiments/dbse/dopamine/${experiment}.gin"
+    echo "--- EXPERIMENT ${experiment} COMPLETED --- "
+    echo
+done
+echo "--- DOPAMINE DBSE EXPERIMENTS COMPLETED ---"
+echo
+echo "--- DOPAMINE EXPERIMENTS COMPLETED ---"
+echo
+
+
+
+2 - Copy the GIN files from experiments/cartpole/dopamine and paste them in experiments/dbse/dopamine
+
+	Initially copy only DQN gin and make the following changes
+	- create_gym_environment.environment_name = 'postgres-idx-advisor'
+
+and other hyper parameter changes they want
+
+3 - Open the terminal
+	- cd /home/zeeshan/.conda/envs/dopamine-env/lib/python3.6/site-packages/dopamine/discrete_domains
+	- gedit gym_lib.py
+	Add the below code snippets respectively
+	a. Below 
+	gin.constant('gym_lib.ACROBOT_STACK_SIZE', 1)
+
+	Paste this
+
+# DBSE constants
+DBSE_MIN_VALS = np.array([0])
+DBSE_MAX_VALS = np.array([1])
+gin.constant('gym_lib.DBSE_OBSERVATION_SHAPE', (8, 60))
+gin.constant('gym_lib.DBSE_OBSERVATION_DTYPE', tf.float32)
+gin.constant('gym_lib.DBSE_STACK_SIZE', 1)
+
+	b. After function def cartpole_dqn_network(num_actions, network_type, state): ends
+Paste this
+	 
+@gin.configurable
+def dbse_dqn_network(num_actions, network_type, state):
+  """Builds the deep network used to compute the agent's Q-values.
+
+  It rescales the input features to a range that yields improved performance.
+
+  Args:
+    num_actions: int, number of actions.
+    network_type: namedtuple, collection of expected values to return.
+    state: `tf.Tensor`, contains the agent's current state.
+
+  Returns:
+    net: _network_type object containing the tensors output by the network.
+  """
+  q_values = _basic_discrete_domain_network(
+      DBSE_MIN_VALS, DBSE_MAX_VALS, num_actions, state)
+  return network_type(q_values)
+
+
+4 - Go to gym/gym/envs
+
+Paste the code
+
+Add the below snippet in __init__.py
+
+# DBSE
+# ----------------------------------------
+register(
+    id='postgres-idx-advisor-v0',
+    entry_point='gym.envs.postgres_idx_advisor.envs:PostgresIdxAdvisorEnv',
+    #timestep_limit=1000,#can be K as we have K - indexes
+)
+
+
+Successfully installed postgres-idx-advisor
+
+
+
+
+------------------------------------------------------------------------------
+cd Downloads/drl-frameworks
+./scripts/evaluate_dopamine_DBSE.sh
