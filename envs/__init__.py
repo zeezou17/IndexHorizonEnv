@@ -1,0 +1,4 @@
+
+#from gym.envs.postgres_idx_advisor.envs import PostgresIdxAdvisorEnv
+from postgres_idx_advisor.envs.postgres_idx_advisor_env import PostgresIdxAdvisorEnv
+#from gym_foo.envs.foo_extrahard_env import FooExtraHardEnv
