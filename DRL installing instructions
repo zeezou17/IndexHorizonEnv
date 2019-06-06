@@ -1,0 +1,31 @@
+INSTALL MINICONDA: 
+Download miniconda from here: https://docs.conda.io/en/latest/miniconda.html 
+Setup the directory for miniconda
+Check Anaconda's version by executing conda --version
+You should get this "conda 4.x.xx" 
+If Anaconda's version is <=4.6.8, run "conda update conda"
+INSTALL pip3 and Tensorflow 
+
+INSTALL DRL FRAMEWORKS:
+Clone the entire repository from "https://github.com/pshevche/drl-frameworks"(This clones dopamine, horizon and ray)
+Open the Terminal and set the path of the downloaded repository
+Create Anaconda environments by running ./scripts/setup.sh.
+RUNNING SAMPLE EXPERIMENTS IN CARTPOLE ENVIRONMENT:
+Cartpole is one of the environments in which we can train our agents. 
+Three agents available: DQN IQ Rainbow
+You can train any one of the agents in Cartpole.
+
+STEPS FOR SAMPLE TRAINING:
+1. Select the agent you would like to train. 
+2. Agents are available in "drl-frameworks-master/src/horizon(or)dopamine(or)ray/experiments/cartpole" 
+   --> Agents are available under all three frameworks. You can choose any one framework. 
+3. Change the hyperparameters inside the selected agent
+(Eg.) dqn agent --> Change the number of iterations =5(for our testing purpose);
+( timesteps = 5000 in horizon and Ray) 
+4. Open the terminal and navigate to the directory where "drl-frameworks-master" is installed 
+5. Run the command "./scripts/setup.sh" (This creates the conda environment if already not created) 
+6. Next Run the experiment using the command "/scripts/evaluate.sh" 
+   --> This must be run under the directory "drl-frameworks-master/<framework>" 
+7. You will get this message "--- EVALUATION COMPLETED ---" 
+8. After this, run "tensorboard --logdir=results",this plots the results from the results foler and you will receive a website link i.e. http://NAME:xxxx (x--> integer) 
+9. You can view the results in the website link.

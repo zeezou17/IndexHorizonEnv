@@ -1,13 +1,14 @@
 # imports
-from environment.Column import Column
+from gym.envs.postgres_idx_advisor.envs.Column import Column
 from typing import Dict
 
 
 # Class
 class Table:
 
-    def __init__(self, table_name):
+    def __init__(self, table_name, number_of_rows):
         self._name = table_name
+        self._number_of_rows = number_of_rows
         # column map contains  column details
         self._column_map: Dict[str, Column] = dict()
 
@@ -18,6 +19,14 @@ class Table:
     @name.setter
     def name(self, table_name: str):
         self._name = table_name
+
+    @property
+    def number_of_rows(self):
+        return self._number_of_rows
+
+    @name.setter
+    def name(self, number_of_rows: int):
+        self._number_of_rows = number_of_rows
 
     def add_column(self, column: Column):
         self._column_map[column.name] = column

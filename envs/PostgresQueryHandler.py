@@ -1,13 +1,16 @@
 import psycopg2
 import sys
-from environment.Utils import Utils
-from environment.Constants import Constants
+from gym.envs.postgres_idx_advisor.envs.Utils import Utils
+from gym.envs.postgres_idx_advisor.envs.Constants import Constants
 from pglast import Node, parse_sql
-
+import re
+import numpy as np
+import json
 
 class PostgresQueryHandler:
     # attribute which will hold the postgres connection
     connection = None
+    connectionDefault = None
     hypo_indexes_dict = dict()
 
     @staticmethod
@@ -39,12 +42,70 @@ class PostgresQueryHandler:
         return PostgresQueryHandler.connection
 
     @staticmethod
-    def execute_select_query(query):
-        cursor = PostgresQueryHandler.__get_connection().cursor()
+    def __get_default_connection():
+        if PostgresQueryHandler.connectionDefault is None:
+            # connect to postgres
+            try:
+                # read database config from config file
+                database_config = Utils.read_config_data(Constants.CONFIG_DATABASE)
+                # connect to postgres
+                PostgresQueryHandler.connectionDefault = psycopg2.connect(database=database_config["dbname"],
+                                                                   user=database_config["user"],
+                                                                   password=database_config["password"],
+                                                                   host=database_config["host"],
+                                                                   port=database_config["port"])
+                PostgresQueryHandler.connectionDefault.autocommit = True
+            # capture connection exception
+            except psycopg2.OperationalError as exception:
+                print('Unable to connect to postgres \n Reason: {0}').format(str(exception))
+                # exit code
+                sys.exit(1)
+            else:
+                cursor = PostgresQueryHandler.connectionDefault.cursor()
+                # Print PostgreSQL version
+                cursor.execute("SELECT version();")
+                record = cursor.fetchone()
+                print("***You are connected to below Postgres database*** \n ", record, "\n")
+        return PostgresQueryHandler.connectionDefault
+
+    @staticmethod
+    def execute_select_query(query: str, load_index_advisor: bool = False, get_explain_plan: bool = False):
+        #cursor = PostgresQueryHandler.__get_connection().cursor()
+        if load_index_advisor:
+            print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+            cursor = PostgresQueryHandler.__get_connection().cursor()
+            cursor.execute(Constants.CREATE_EXTENSION)
+            cursor.execute(Constants.LOAD_PG_IDX_ADVISOR)
+            cursor = PostgresQueryHandler.__get_connection().cursor()
+        else:
+            print('################################')
+            cursor = PostgresQueryHandler.__get_default_connection().cursor()
+            cursor.execute(Constants.DROP_PG_IDX_ADVISOR)
+        if get_explain_plan:
+            query = Constants.QUERY_EXPLAIN_PLAN.format(query)
         cursor.execute(query)
         returned_rows = cursor.fetchall()
+
+        #PostgresQueryHandler.check_hypo_indexes()
+
         cursor.close()
         return returned_rows
+
+    @staticmethod
+    def get_table_row_count(table_name):
+        cursor = PostgresQueryHandler.__get_connection().cursor()
+        cursor.execute(Constants.QUERY_FIND_NUMBER_OF_ROWS.format(table_name))
+        returned_count = cursor.fetchone()
+        cursor.close()
+        return returned_count[0]
+
+    @staticmethod
+    def execute_count_query(query):
+        cursor = PostgresQueryHandler.__get_connection().cursor()
+        cursor.execute(query)
+        returned_count = cursor.fetchone()
+        cursor.close()
+        return returned_count[0]
 
     @staticmethod
     def execute_select_query_and_get_row_count(query):
@@ -62,7 +123,8 @@ class PostgresQueryHandler:
         key = table_name + Constants.MULTI_KEY_CONCATENATION_STRING + col_name
         # create hypo index if it is not already present
         if key not in PostgresQueryHandler.hypo_indexes_dict:
-            cursor = PostgresQueryHandler.__get_connection().cursor()
+            cursor = PostgresQueryHandler.__get_default_connection().cursor()
+            #print('setting index', table_name, col_name)
             # replace placeholders in the create hypo index query with table name and column name
             cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
             returned_index_id = cursor.fetchone()
@@ -82,8 +144,9 @@ class PostgresQueryHandler:
 
     @staticmethod
     def remove_all_hypo_indexes():
-        cursor = PostgresQueryHandler.__get_connection().cursor()
+        cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_REMOVE_ALL_HYPO_INDEXES)
+        print(cursor.fetchall())
         cursor.close()
 
     @staticmethod
@@ -92,3 +155,44 @@ class PostgresQueryHandler:
         for tre in query_tree:
             for node in tre.stmt.whereClause:
                 print(str(node))
+
+    @staticmethod
+    def check_hypo_indexes():
+        cursor = PostgresQueryHandler.__get_default_connection().cursor()
+        cursor.execute(Constants.QUERY_CHECK_HYPO_INDEXES)
+        print(cursor.fetchall())
+        cursor.close()
+
+    @staticmethod
+    def add_query_cost_suggested_indexes(result):
+        #PostgresQueryHandler.check_hypo_indexes()
+        explain_plan = ' \n'.join(map(str, result))
+        # extract cost
+        print(explain_plan)
+        cost_pattern = "cost=(.*)row"
+        cost_match = re.search(cost_pattern, explain_plan)
+        if cost_match is not None:
+            cost_query = cost_match.group(1).split('..')[-1]
+            return float(cost_query)
+
+    @staticmethod
+    def get_observation_space(queries_list):
+        observation_space = np.array(np.ones((8,61)))
+        observation_space[0,:] = np.array((np.zeros((61,))))
+        action_space = PostgresQueryHandler.read_json_action_space()
+        for query_number in range(len(queries_list)):
+            for key, value in queries_list[query_number].where_clause_columns_query.items():
+                print(key + '   :  ' + value + ' : ' + str(
+                    queries_list[query_number].selectivity_for_where_clause_columns[key]) + '  : ' + str(queries_list[query_number].query_cost_without_index))
+                table_name, col_name = key.split(Constants.MULTI_KEY_CONCATENATION_STRING)
+                print(key, table_name, col_name)
+                selectivity_index = action_space[(table_name + "." + col_name).upper()]
+                print(selectivity_index)
+                observation_space[query_number+1, selectivity_index] = queries_list[query_number].selectivity_for_where_clause_columns[key]
+        return observation_space
+
+    @staticmethod
+    def read_json_action_space():
+        with open('../index_action_space.json') as json_file:
+            action_space = json.load(json_file)
+        return action_space
