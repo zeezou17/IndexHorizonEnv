@@ -14,7 +14,7 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.k = 0
         #self.reward_range(1, 100)
         self.reward = 0
-        self.done = 0
+        self.done = False
         self.counter = 0
         self.k_idx = 0
         self.cost_initial = 0
@@ -37,13 +37,13 @@ class PostgresIdxAdvisorEnv(gym.Env):
         #self.reward_range(1, 100)
         self.reward = 0.0
         self.done = False
-        self.counter = 1
+        self.counter = 0
         self.k_idx = 0
         self.observation, self.cost_initial, self.cost_idx_advisor = self.init_observation()
         #self.cost_initial = 10000  # Some function to retrieve the cost
         #self.cost_idx_advisor = 7000  # Some function to retrieve the cost
         self.value = 0.0
-        self.value_prev = float("inf")
+        self.value_prev = 1/self.cost_initial
         self.k = 10
         return self.observation
 
@@ -57,67 +57,67 @@ class PostgresIdxAdvisorEnv(gym.Env):
               [0,0,0,0,0.3,0,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0.6,0,0,0,0,0,0.2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0.9,0,0,0,0.3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]])"""
-        self.observation, self.queries_list, self.idx_advisor_suggested_indexes = QueryExecutor.init_variables()
+        self.queries_list, self.all_predicates, self.idx_advisor_suggested_indexes = QueryExecutor.init_variables()
+        self.observation = QueryExecutor.create_observation_space(self.queries_list)
         self.cost_initial = QueryExecutor.get_initial_cost(self.queries_list)
-        self.cost_idx_advisor = QueryExecutor.get_best_cost(self.queries_list)
+        self.cost_idx_advisor = QueryExecutor.get_best_cost(self.queries_list, self.idx_advisor_suggested_indexes)
 
         return self.observation, self.cost_initial, self.cost_idx_advisor
 
-    def _next_observation(self, action):
+    def _take_action(self, action):
         # Something which takes action and returns te next state with hypothetical indexes set
 
         #obs = self.observation
         if self.observation[0, action] != 1:
             #obs[0, action] = 1
-            obs, cost_action = QueryExecutor.generate_next_state(self.queries_list, action, self.observation)
+            self.observation, cost_action = QueryExecutor.generate_next_state(self.queries_list, action, self.observation)
             switch_correct = 1
         # switch the position at that action to 1
         # if index is not yet set set switch_correct to 1 else 0
         else:
+            cost_action = float("inf")
             switch_correct = 0
 
-        return obs, cost_action, switch_correct
+        return self.observation, cost_action, switch_correct
 
     # If this doesnt work then somehow need to figure out hoe to pass the observation to perform the action
     def step(self, action):
         # Execute one time step within the environment
-        obs, cost_agent_idx, switch_correct = self._take_action(action)
+        #print(action)
+        self.observation, cost_agent_idx, switch_correct = self._take_action(action)
         if switch_correct == 1 and self.k_idx < self.k:
             self.value = self.calculate_value(cost_agent_idx)
             if self.value_prev > self.value:
-                self.done = 0
+                self.done = False
                 self.reward = 1
                 self.k_idx += 1
                 self.value_prev = self.value
             else:
+                QueryExecutor.remove_all_hypo_indexes()
                 self.done = True
-                self.reward = 100 - self.counter
+                self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, cost_agent_idx, self.counter)
         else:
+            QueryExecutor.remove_all_hypo_indexes()
             self.done = True
-            self.reward = 100 - self.counter
+            self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, cost_agent_idx, self.counter)
 
         self.counter += self.counter
-        self.k_idx += self.k_idx
-        return obs, self.reward, self.done, {}
-
-    def _take_action(self,  action):
-        # Set hypothetical indexes and retrieves cost value
-        obs, switch_correct = self._next_observation(action)
-
-        # Need to change this
-        cost = random.randint(500, 3000)
-
-        return obs, cost, switch_correct
+        #self.k_idx += self.k_idx
+        QueryExecutor.check_step_variables(self.observation,cost_agent_idx,switch_correct,self.k,self.k_idx,self.value,self.value_prev,self.done,self.reward,self.counter)
+        return self.observation, self.reward, self.done, {}
 
     def render(self, mode='human', close=False):
         # Print some statements you want to print
         print(self.counter, "\t", self.reward, "\t", "\t", self.observation[0, :])
 
-    def calculate_value(self, cost_agent_idx):
-        value = (((1/cost_agent_idx) - (1/self.cost_initial))/((1/self.cost_idx_advisor) - (1/self.cost_initial)))
+    def calculate_value(self, cost):
+        #value = (((1/cost_agent_idx) - (1/self.cost_initial))/((1/self.cost_idx_advisor) - (1/self.cost_initial)))*100
+        value = 1/cost
         return value
 
-
+    def calculate_reward(self, cost_initial, cost_idx_advisor, cost_agent_idx, counter):
+        rew = (((self.calculate_value(cost_agent_idx) - self.calculate_value(cost_initial))/(self.calculate_value(cost_idx_advisor) - self.calculate_value(cost_initial)))*100) - counter
+        return rew
 # Path of procedure
 # First init in the test python file
 # Then reset until some number of steps

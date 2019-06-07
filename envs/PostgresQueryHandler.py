@@ -11,6 +11,7 @@ class PostgresQueryHandler:
     # attribute which will hold the postgres connection
     connection = None
     connectionDefault = None
+    connectionAgent = None
     hypo_indexes_dict = dict()
 
     @staticmethod
@@ -122,14 +123,22 @@ class PostgresQueryHandler:
     def create_hypo_index(table_name, col_name):
         key = table_name + Constants.MULTI_KEY_CONCATENATION_STRING + col_name
         # create hypo index if it is not already present
-        if key not in PostgresQueryHandler.hypo_indexes_dict:
+        """if key not in PostgresQueryHandler.hypo_indexes_dict:
             cursor = PostgresQueryHandler.__get_default_connection().cursor()
             #print('setting index', table_name, col_name)
             # replace placeholders in the create hypo index query with table name and column name
             cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
             returned_index_id = cursor.fetchone()
+            print('fetchall', cursor.fetchall(), returned_index_id )
             cursor.close()
-            PostgresQueryHandler.hypo_indexes_dict[key] = returned_index_id[0]
+            PostgresQueryHandler.hypo_indexes_dict[key] = returned_index_id[0]"""
+        cursor = PostgresQueryHandler.__get_default_connection().cursor()
+        # print('setting index', table_name, col_name)
+        # replace placeholders in the create hypo index query with table name and column name
+        cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
+        returned_index_id = cursor.fetchone()
+        print('fetchall', cursor.fetchall(), returned_index_id)
+        cursor.close()
 
     @staticmethod
     def remove_hypo_index(table_name, col_name):
@@ -193,6 +202,6 @@ class PostgresQueryHandler:
 
     @staticmethod
     def read_json_action_space():
-        with open('../index_action_space.json') as json_file:
+        with open('/home/zeeshan/Downloads/gym/gym/envs/postgres_idx_advisor//index_action_space.json') as json_file:
             action_space = json.load(json_file)
         return action_space

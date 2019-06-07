@@ -76,14 +76,16 @@ class QueryExecutor:
 
     @staticmethod
     def create_observation_space(queries_list):
+        #print('Observation Space', PostgresQueryHandler.get_observation_space(queries_list))
         return PostgresQueryHandler.get_observation_space(queries_list)
 
     @staticmethod
     def get_initial_cost(queries_list):
-        initial_cost = 0
+        initial_cost = 0.0
         for query in queries_list:
+            print(queries_list)
             initial_cost += float(query.query_cost_without_index)
-            #print(query.query_cost_without_index)
+        print('Cost -0 ', initial_cost)
         return initial_cost
 
     @staticmethod
@@ -92,66 +94,84 @@ class QueryExecutor:
         query_executor.initialize_table_information()
         queries_list, all_predicates, idx_advisor_suggested_indexes = Utils.get_queries_from_sql_file(
             query_executor.column_map, query_executor.tables_map)
+        print('eeeee',idx_advisor_suggested_indexes)
         return queries_list, all_predicates, idx_advisor_suggested_indexes
 
 
     @staticmethod
     def get_best_cost(queries_list, idx_advisor_suggested_indexes):
-        print('*********************************')
-        print('Set Hypo PG Index')
+        #print('*********************************')
+        #print('Set Hypo PG Index')
         for suggested_indexes in idx_advisor_suggested_indexes:
             table_name, col_name = suggested_indexes.split(Constants.MULTI_KEY_CONCATENATION_STRING)
-            # print(table_name, col_name)
+            print(table_name, col_name)
             PostgresQueryHandler.create_hypo_index(table_name, col_name)
 
-        print('Verify if indexes are setting')
+        #print('Verify if indexes are setting')
         PostgresQueryHandler.check_hypo_indexes()
 
-        print('Get total cost of the all queries')
+        #print('Get total cost of the all queries')
         query_cost_with_idx_advisor_suggestion = 0.0
         for query in queries_list:
-            print('************************************')
-            print('QUERY :' + query.query_string)
-            print('******************')
+            #print('************************************')
+            #print('QUERY :' + query.query_string)
+            #print('******************')
             result = PostgresQueryHandler.execute_select_query(query.query_string, load_index_advisor=False,
                                                                get_explain_plan=True)
             query_cost_with_idx_advisor_suggestion += PostgresQueryHandler.add_query_cost_suggested_indexes(
                 result)
             #print(query_cost_with_idx_advisor_suggestion)
-        print('Total Cost')
+        print('Best Total Cost')
         print(query_cost_with_idx_advisor_suggestion)
 
-        print('******************************')
-        print('Remove hypo indexes')
+        #print('******************************')
+        #print('Remove hypo indexes')
         PostgresQueryHandler.remove_all_hypo_indexes()
         return query_cost_with_idx_advisor_suggestion
 
     @staticmethod
     def generate_next_state(queries_list, action, observation_space):
         observation_space[0, action] = 1
+        print(observation_space)
         action_space = PostgresQueryHandler.read_json_action_space()
         #table_name, col_name = None
         for key, value in action_space.items():
             if value == action:
                 table_name, col_name = key.split(".")
+                print('action',action,table_name,col_name)
                 break;
         PostgresQueryHandler.create_hypo_index(table_name, col_name)
         PostgresQueryHandler.check_hypo_indexes()
         query_cost_with_idx_advisor_suggestion = 0.0
         for query in queries_list:
-            print('************************************')
-            print('QUERY :' + query.query_string)
-            print('******************')
+            #print('************************************')
+            #print('QUERY :' + query.query_string)
+            #print('******************')
             result = PostgresQueryHandler.execute_select_query(query.query_string, load_index_advisor=False,
                                                                get_explain_plan=True)
             query_cost_with_idx_advisor_suggestion += PostgresQueryHandler.add_query_cost_suggested_indexes(
                 result)
             # print(query_cost_with_idx_advisor_suggestion)
-        print('Total Cost')
+        print('Agent Cost')
         print(query_cost_with_idx_advisor_suggestion)
         return observation_space, query_cost_with_idx_advisor_suggestion
 
+    @staticmethod
+    def remove_all_hypo_indexes():
+        PostgresQueryHandler.remove_all_hypo_indexes()
 
+    @staticmethod
+    def check_step_variables(observation,cost_agent_idx,switch_correct,k,k_idx,value,value_prev,done,reward,counter):
+        print('observation',observation[0,:])
+        print('cost_agent_idx', cost_agent_idx)
+        print('switch_correct', switch_correct)
+        print('k', k)
+        print('k_idx', k_idx)
+        print('value', value)
+        print('value_prev', value_prev)
+        print('done', done)
+        print('reward', reward)
+        print('counter', counter)
 #query_executor = QueryExecutor()
 #query_executor.initialize_table_information()
 #queries_list, all_predicates,idx_advisor_suggested_indexes = Utils.get_queries_from_sql_file(query_executor.column_map,query_executor.tables_map)

@@ -3,7 +3,7 @@ from gym.envs.postgres_idx_advisor.envs.Constants import Constants
 from gym.envs.postgres_idx_advisor.envs.Table import Table
 import sqlparse
 import re
-from envs import PostgresQueryHandler
+from gym.envs.postgres_idx_advisor.envs import PostgresQueryHandler
 
 
 # this class parses only simple queries to extract each where condition and form a seperate query
