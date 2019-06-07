@@ -87,7 +87,7 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.observation, cost_agent_idx, switch_correct = self._take_action(action)
         if switch_correct == 1 and self.k_idx < self.k:
             self.value = self.calculate_value(cost_agent_idx)
-            if self.value_prev > self.value:
+            if self.value_prev < self.value:
                 self.done = False
                 self.reward = 1
                 self.k_idx += 1
