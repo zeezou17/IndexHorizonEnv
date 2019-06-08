@@ -39,7 +39,7 @@ class PostgresQueryHandler:
                 # Print PostgreSQL version
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
-                print("***You are connected to below Postgres database*** \n ", record, "\n")
+                #print("***You are connected to below Postgres database*** \n ", record, "\n")
         return PostgresQueryHandler.connection
 
     @staticmethod
@@ -66,20 +66,20 @@ class PostgresQueryHandler:
                 # Print PostgreSQL version
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
-                print("***You are connected to below Postgres database*** \n ", record, "\n")
+                #print("***You are connected to below Postgres database*** \n ", record, "\n")
         return PostgresQueryHandler.connectionDefault
 
     @staticmethod
     def execute_select_query(query: str, load_index_advisor: bool = False, get_explain_plan: bool = False):
         #cursor = PostgresQueryHandler.__get_connection().cursor()
         if load_index_advisor:
-            print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+            #print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
             cursor = PostgresQueryHandler.__get_connection().cursor()
             cursor.execute(Constants.CREATE_EXTENSION)
             cursor.execute(Constants.LOAD_PG_IDX_ADVISOR)
             cursor = PostgresQueryHandler.__get_connection().cursor()
         else:
-            print('################################')
+            #print('################################')
             cursor = PostgresQueryHandler.__get_default_connection().cursor()
             cursor.execute(Constants.DROP_PG_IDX_ADVISOR)
         if get_explain_plan:

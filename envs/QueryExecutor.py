@@ -83,7 +83,7 @@ class QueryExecutor:
     def get_initial_cost(queries_list):
         initial_cost = 0.0
         for query in queries_list:
-            print(queries_list)
+            #print(queries_list)
             initial_cost += float(query.query_cost_without_index)
         print('Cost -0 ', initial_cost)
         return initial_cost
@@ -132,6 +132,7 @@ class QueryExecutor:
     @staticmethod
     def generate_next_state(queries_list, action, observation_space):
         observation_space[0, action] = 1
+        print('action', action)
         print(observation_space)
         action_space = PostgresQueryHandler.read_json_action_space()
         #table_name, col_name = None
@@ -161,7 +162,7 @@ class QueryExecutor:
         PostgresQueryHandler.remove_all_hypo_indexes()
 
     @staticmethod
-    def check_step_variables(observation,cost_agent_idx,switch_correct,k,k_idx,value,value_prev,done,reward,counter):
+    def check_step_variables(observation,cost_agent_idx,switch_correct,k,k_idx,value,value_prev,done,reward,counter,action):
         print('observation',observation[0,:])
         print('cost_agent_idx', cost_agent_idx)
         print('switch_correct', switch_correct)
@@ -172,6 +173,7 @@ class QueryExecutor:
         print('done', done)
         print('reward', reward)
         print('counter', counter)
+        print('action', action)
 #query_executor = QueryExecutor()
 #query_executor.initialize_table_information()
 #queries_list, all_predicates,idx_advisor_suggested_indexes = Utils.get_queries_from_sql_file(query_executor.column_map,query_executor.tables_map)

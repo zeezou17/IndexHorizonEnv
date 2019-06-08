@@ -40,11 +40,12 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.counter = 0
         self.k_idx = 0
         self.observation, self.cost_initial, self.cost_idx_advisor = self.init_observation()
+        self.cost_prev = self.cost_initial
         #self.cost_initial = 10000  # Some function to retrieve the cost
         #self.cost_idx_advisor = 7000  # Some function to retrieve the cost
         self.value = 0.0
         self.value_prev = 1/self.cost_initial
-        self.k = 10
+        self.k = 5
         return self.observation
 
     def init_observation(self):
@@ -92,18 +93,21 @@ class PostgresIdxAdvisorEnv(gym.Env):
                 self.reward = 1
                 self.k_idx += 1
                 self.value_prev = self.value
+                self.cost_prev = cost_agent_idx
+                self.counter += 1
             else:
                 QueryExecutor.remove_all_hypo_indexes()
                 self.done = True
-                self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, cost_agent_idx, self.counter)
+                self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, self.cost_prev, self.counter)
         else:
             QueryExecutor.remove_all_hypo_indexes()
             self.done = True
-            self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, cost_agent_idx, self.counter)
+            self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, self.cost_prev, self.counter)
 
-        self.counter += self.counter
+
+
         #self.k_idx += self.k_idx
-        QueryExecutor.check_step_variables(self.observation,cost_agent_idx,switch_correct,self.k,self.k_idx,self.value,self.value_prev,self.done,self.reward,self.counter)
+        QueryExecutor.check_step_variables(self.observation,cost_agent_idx,switch_correct, self.k, self.k_idx, self.value, self.value_prev, self.done, self.reward, self.counter, action)
         return self.observation, self.reward, self.done, {}
 
     def render(self, mode='human', close=False):
@@ -116,7 +120,10 @@ class PostgresIdxAdvisorEnv(gym.Env):
         return value
 
     def calculate_reward(self, cost_initial, cost_idx_advisor, cost_agent_idx, counter):
-        rew = (((self.calculate_value(cost_agent_idx) - self.calculate_value(cost_initial))/(self.calculate_value(cost_idx_advisor) - self.calculate_value(cost_initial)))*100) - counter
+        denom =(self.calculate_value(cost_idx_advisor) - self.calculate_value(cost_initial))
+        if denom==0:
+            denom=1
+        rew = (((self.calculate_value(cost_agent_idx) - self.calculate_value(cost_initial))/denom)*100) - counter
         return rew
 # Path of procedure
 # First init in the test python file
