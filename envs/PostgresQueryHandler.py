@@ -137,7 +137,7 @@ class PostgresQueryHandler:
         # replace placeholders in the create hypo index query with table name and column name
         cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
         returned_index_id = cursor.fetchone()
-        print('fetchall', cursor.fetchall(), returned_index_id)
+        #print('fetchall', cursor.fetchall(), returned_index_id)
         cursor.close()
 
     @staticmethod
@@ -155,7 +155,7 @@ class PostgresQueryHandler:
     def remove_all_hypo_indexes():
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_REMOVE_ALL_HYPO_INDEXES)
-        print(cursor.fetchall())
+        #print(cursor.fetchall())
         cursor.close()
 
     @staticmethod
@@ -177,7 +177,7 @@ class PostgresQueryHandler:
         #PostgresQueryHandler.check_hypo_indexes()
         explain_plan = ' \n'.join(map(str, result))
         # extract cost
-        print(explain_plan)
+        #print(explain_plan)
         cost_pattern = "cost=(.*)row"
         cost_match = re.search(cost_pattern, explain_plan)
         if cost_match is not None:
@@ -191,12 +191,12 @@ class PostgresQueryHandler:
         action_space = PostgresQueryHandler.read_json_action_space()
         for query_number in range(len(queries_list)):
             for key, value in queries_list[query_number].where_clause_columns_query.items():
-                print(key + '   :  ' + value + ' : ' + str(
-                    queries_list[query_number].selectivity_for_where_clause_columns[key]) + '  : ' + str(queries_list[query_number].query_cost_without_index))
+                #print(key + '   :  ' + value + ' : ' + str(
+                #    queries_list[query_number].selectivity_for_where_clause_columns[key]) + '  : ' + str(queries_list[query_number].query_cost_without_index))
                 table_name, col_name = key.split(Constants.MULTI_KEY_CONCATENATION_STRING)
-                print(key, table_name, col_name)
+                #print(key, table_name, col_name)
                 selectivity_index = action_space[(table_name + "." + col_name).upper()]
-                print(selectivity_index)
+                #print(selectivity_index)
                 observation_space[query_number+1, selectivity_index] = queries_list[query_number].selectivity_for_where_clause_columns[key]
         return observation_space
 

@@ -31,6 +31,7 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.queries_list = None
         self.all_predicates = None
         self.idx_advisor_suggested_indexes = None
+        self.eval_mode = False
 
     # reset is supposed to be used after every game end criteria
     def reset(self):
@@ -39,26 +40,23 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.done = False
         self.counter = 0
         self.k_idx = 0
-        self.observation, self.cost_initial, self.cost_idx_advisor = self.init_observation()
+        if self.eval_mode:
+            self.observation, self.cost_initial, self.cost_idx_advisor = self.init_observation(self.eval_mode)
+        else:
+            self.observation, self.cost_initial, self.cost_idx_advisor = self.init_observation(self.eval_mode)
+
+        #self.observation, self.cost_initial, self.cost_idx_advisor = self.init_observation()
         self.cost_prev = self.cost_initial
         #self.cost_initial = 10000  # Some function to retrieve the cost
         #self.cost_idx_advisor = 7000  # Some function to retrieve the cost
         self.value = 0.0
         self.value_prev = 1/self.cost_initial
-        self.k = 5
+        self.k = 4
         return self.observation
 
-    def init_observation(self):
+    def init_observation(self, eval_mode):
         # send the queries to the DB and get selectivity matrix
-        """obs = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0,0.2,0,0,0,0,0,0,0,0,0,0,0,0,0,0.8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0,0,0.3,0,0,0,0,0,0,0,0,0,0,0,0.7,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0,0,0,0.1,0,0,0,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0,0,0,0,0.3,0,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0,0,0,0,0,0.6,0,0,0,0,0,0.2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-              [0,0,0,0,0,0,0.9,0,0,0,0.3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]])"""
-        self.queries_list, self.all_predicates, self.idx_advisor_suggested_indexes = QueryExecutor.init_variables()
+        self.queries_list, self.all_predicates, self.idx_advisor_suggested_indexes = QueryExecutor.init_variables(eval_mode)
         self.observation = QueryExecutor.create_observation_space(self.queries_list)
         self.cost_initial = QueryExecutor.get_initial_cost(self.queries_list)
         self.cost_idx_advisor = QueryExecutor.get_best_cost(self.queries_list, self.idx_advisor_suggested_indexes)
@@ -91,10 +89,10 @@ class PostgresIdxAdvisorEnv(gym.Env):
             if self.value_prev < self.value:
                 self.done = False
                 self.reward = 1
-                self.k_idx += 1
+                #self.k_idx += 1
                 self.value_prev = self.value
                 self.cost_prev = cost_agent_idx
-                self.counter += 1
+                #self.counter += 1
             else:
                 QueryExecutor.remove_all_hypo_indexes()
                 self.done = True
@@ -105,8 +103,9 @@ class PostgresIdxAdvisorEnv(gym.Env):
             self.reward = self.calculate_reward(self.cost_initial, self.cost_idx_advisor, self.cost_prev, self.counter)
 
 
-
-        #self.k_idx += self.k_idx
+        # With action pruning
+        self.k_idx += 1
+        self.counter += 1
         QueryExecutor.check_step_variables(self.observation,cost_agent_idx,switch_correct, self.k, self.k_idx, self.value, self.value_prev, self.done, self.reward, self.counter, action)
         return self.observation, self.reward, self.done, {}
 

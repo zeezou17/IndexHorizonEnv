@@ -89,12 +89,13 @@ class QueryExecutor:
         return initial_cost
 
     @staticmethod
-    def init_variables():
+    def init_variables(eval_mode):
+        print('eval_mode', eval_mode)
         query_executor = QueryExecutor()
         query_executor.initialize_table_information()
         queries_list, all_predicates, idx_advisor_suggested_indexes = Utils.get_queries_from_sql_file(
             query_executor.column_map, query_executor.tables_map)
-        print('eeeee',idx_advisor_suggested_indexes)
+        print('Suggested indexes',idx_advisor_suggested_indexes)
         return queries_list, all_predicates, idx_advisor_suggested_indexes
 
 
@@ -104,7 +105,7 @@ class QueryExecutor:
         #print('Set Hypo PG Index')
         for suggested_indexes in idx_advisor_suggested_indexes:
             table_name, col_name = suggested_indexes.split(Constants.MULTI_KEY_CONCATENATION_STRING)
-            print(table_name, col_name)
+            #print(table_name, col_name)
             PostgresQueryHandler.create_hypo_index(table_name, col_name)
 
         #print('Verify if indexes are setting')
@@ -132,14 +133,15 @@ class QueryExecutor:
     @staticmethod
     def generate_next_state(queries_list, action, observation_space):
         observation_space[0, action] = 1
-        print('action', action)
-        print(observation_space)
+        #observation_space[:, action] = 1
+        #print('action', action)
+        #print(observation_space)
         action_space = PostgresQueryHandler.read_json_action_space()
         #table_name, col_name = None
         for key, value in action_space.items():
             if value == action:
                 table_name, col_name = key.split(".")
-                print('action',action,table_name,col_name)
+                #print('action',action,table_name,col_name)
                 break;
         PostgresQueryHandler.create_hypo_index(table_name, col_name)
         PostgresQueryHandler.check_hypo_indexes()
@@ -163,7 +165,7 @@ class QueryExecutor:
 
     @staticmethod
     def check_step_variables(observation,cost_agent_idx,switch_correct,k,k_idx,value,value_prev,done,reward,counter,action):
-        print('observation',observation[0,:])
+        print('observation',observation)
         print('cost_agent_idx', cost_agent_idx)
         print('switch_correct', switch_correct)
         print('k', k)

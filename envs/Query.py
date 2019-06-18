@@ -105,7 +105,7 @@ class Query:
         # get explain plan
         result = PostgresQueryHandler.PostgresQueryHandler.execute_select_query(self.query_string, load_index_advisor=True, get_explain_plan=True)
         explain_plan = ' \n'.join(map(str, result))
-        print(explain_plan)
+        #print(explain_plan)
         # extract cost
         cost_pattern = "cost=(.*)row"
         index_pattern = "(create index.+?(?='))"
