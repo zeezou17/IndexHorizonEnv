@@ -5,7 +5,6 @@ from gym.envs.postgres_idx_advisor.envs.Constants import Constants
 from pglast import Node, parse_sql
 import re
 import numpy as np
-import json
 
 class PostgresQueryHandler:
     # attribute which will hold the postgres connection
@@ -169,7 +168,7 @@ class PostgresQueryHandler:
     def check_hypo_indexes():
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_CHECK_HYPO_INDEXES)
-        print(cursor.fetchall())
+        #print(cursor.fetchall())
         cursor.close()
 
     @staticmethod
@@ -186,22 +185,19 @@ class PostgresQueryHandler:
 
     @staticmethod
     def get_observation_space(queries_list):
-        observation_space = np.array(np.ones((8,61)))
-        observation_space[0,:] = np.array((np.zeros((61,))))
-        action_space = PostgresQueryHandler.read_json_action_space()
+        """
+        :param queries_list: list of queries
+        :return: observation matrix containing the selectivity factor
+            Calculates the initial observation space with the selectivity factors.
+            Currently a static matrix as the observation space has only 7 queries and 61 coloumns.
+            To work on dynamic method a whole new mechanism needs to be written on how to construct the action_space_json file
+        """
+        observation_space = np.array(np.ones((8, 61)))
+        observation_space[0, :] = np.array((np.zeros((61,))))
+        action_space = Utils.read_json_action_space()
         for query_number in range(len(queries_list)):
             for key, value in queries_list[query_number].where_clause_columns_query.items():
-                #print(key + '   :  ' + value + ' : ' + str(
-                #    queries_list[query_number].selectivity_for_where_clause_columns[key]) + '  : ' + str(queries_list[query_number].query_cost_without_index))
                 table_name, col_name = key.split(Constants.MULTI_KEY_CONCATENATION_STRING)
-                #print(key, table_name, col_name)
                 selectivity_index = action_space[(table_name + "." + col_name).upper()]
-                #print(selectivity_index)
                 observation_space[query_number+1, selectivity_index] = queries_list[query_number].selectivity_for_where_clause_columns[key]
         return observation_space
-
-    @staticmethod
-    def read_json_action_space():
-        with open('/home/zeeshan/Downloads/gym/gym/envs/postgres_idx_advisor//index_action_space.json') as json_file:
-            action_space = json.load(json_file)
-        return action_space

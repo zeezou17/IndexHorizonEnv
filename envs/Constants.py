@@ -45,6 +45,7 @@ class Constants(object):
     MULTI_KEY_CONCATENATION_STRING = '::'
     CONFIG_TABLES = 'Tables'
     CONFIG_DATABASE = 'Database'
+    CONFIG_GINPROPERTIES = 'GINProperties'
     POSTGRES_DATA_TYPE_SIZE_MAP = {'bigint': 8, 'boolean': 1, 'date': 4, 'integer': 4, 'smallint': 2, 'double': 8}
     POSTGRES_WHERE_CLAUSE_OPERATORS_LIST = ['<', '>', '<=', '>=', '=', '<>', '!=', ' IS ', ' is ', ' isnull', ' ISNULL',
                                             ' NOTNULL', ' notnull', ' between ', ' in ']
