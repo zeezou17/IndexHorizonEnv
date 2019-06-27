@@ -143,6 +143,7 @@ class Query:
     @staticmethod
     def reset():
         Query.all_predicates.clear()
+        Query.idx_advisor_suggested_indexes.clear()
 
     @staticmethod
     def add_idx_advisor_suggested_indexes(table_name: str, col_name: str):

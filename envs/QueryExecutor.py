@@ -79,6 +79,7 @@ class QueryExecutor:
     def create_observation_space(queries_list):
         """
         :param queries_list: list of queries
+        :param length: if 2 2d dimensional else 3 dimensional
         :return: generates the pbservation matrix using the queries
         """
         return PostgresQueryHandler.get_observation_space(queries_list)
@@ -174,7 +175,8 @@ class QueryExecutor:
         k_offset = gin_config["k_offset"]
         train_file = gin_config["train_file"]
         test_file = gin_config["test_file"]
-        return int(k_offset), train_file, test_file
+        agent = gin_config["agent"]
+        return int(k_offset), train_file, test_file, agent
 
     @staticmethod
     def check_step_variables(observation, cost_agent_idx, switch_correct, k, k_idx, value, value_prev, done, reward, counter, action):

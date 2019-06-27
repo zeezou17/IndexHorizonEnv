@@ -24,8 +24,8 @@ class Utils:
         for query_text in file_content.split(';'):
             # remove comments
             if query_text.strip() != '':
-                queries_list.append(Query(query_text, columns_map,tables_map))
-        return queries_list,Query.all_predicates,Query.idx_advisor_suggested_indexes
+                queries_list.append(Query(query_text, columns_map, tables_map))
+        return queries_list, Query.all_predicates, Query.idx_advisor_suggested_indexes
 
     @staticmethod
     def read_json_action_space():

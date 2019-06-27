@@ -30,11 +30,13 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.action_space = spaces.Discrete(60)
         self.value = 0
         self.value_prev = 999
-        self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61), dtype=np.float32)
+        #self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61), dtype=np.float32)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61, 1), dtype=np.float32)
         self.queries_list = None
         self.all_predicates = None
         self.idx_advisor_suggested_indexes = None
         self.evaluation_mode = None
+        self.agent = None
 
 
     def set_eval_mode(self, eval_mode):
@@ -56,7 +58,7 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.counter = 0
         self.k_idx = 0
 
-        k_offset, train_file, test_file = QueryExecutor.get_gin_properties()
+        k_offset, train_file, test_file, self.agent = QueryExecutor.get_gin_properties()
 
         # Enters Evaluation mode
         if self.evaluation_mode:
@@ -71,6 +73,11 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.cost_prev = self.cost_initial
         self.value = 0.0
         self.value_prev = 1/self.cost_initial
+
+        if self.agent.lower() != 'dopamine':
+            #print(self.agent, 'flattening')
+            self.observation = self.observation.flatten().reshape(8, 61, 1)
+
         return self.observation
 
     def init_observation(self, filename, k_offset):
@@ -140,7 +147,12 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.k_idx += 1
         self.counter += 1
 
+        if self.agent.lower() != 'dopamine':
+            #print(self.agent, 'flattening')
+            self.observation = self.observation.flatten().reshape(8, 61, 1)
+
         QueryExecutor.check_step_variables(self.observation, cost_agent_idx, switch_correct, self.k, self.k_idx, self.value, self.value_prev, self.game_over, self.reward, self.counter, action)
+
         return self.observation, self.reward, self.game_over, {}
 
     def render(self, mode='human', close=False):
