@@ -38,7 +38,6 @@ class PostgresQueryHandler:
                 # Print PostgreSQL version
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
-                #print("***You are connected to below Postgres database*** \n ", record, "\n")
         return PostgresQueryHandler.connection
 
     @staticmethod
@@ -62,32 +61,24 @@ class PostgresQueryHandler:
                 sys.exit(1)
             else:
                 cursor = PostgresQueryHandler.connectionDefault.cursor()
-                # Print PostgreSQL version
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
-                #print("***You are connected to below Postgres database*** \n ", record, "\n")
         return PostgresQueryHandler.connectionDefault
 
     @staticmethod
     def execute_select_query(query: str, load_index_advisor: bool = False, get_explain_plan: bool = False):
-        #cursor = PostgresQueryHandler.__get_connection().cursor()
         if load_index_advisor:
-            #print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
             cursor = PostgresQueryHandler.__get_connection().cursor()
             cursor.execute(Constants.CREATE_EXTENSION)
             cursor.execute(Constants.LOAD_PG_IDX_ADVISOR)
             cursor = PostgresQueryHandler.__get_connection().cursor()
         else:
-            #print('################################')
             cursor = PostgresQueryHandler.__get_default_connection().cursor()
             cursor.execute(Constants.DROP_PG_IDX_ADVISOR)
         if get_explain_plan:
             query = Constants.QUERY_EXPLAIN_PLAN.format(query)
         cursor.execute(query)
         returned_rows = cursor.fetchall()
-
-        #PostgresQueryHandler.check_hypo_indexes()
-
         cursor.close()
         return returned_rows
 
@@ -122,21 +113,10 @@ class PostgresQueryHandler:
     def create_hypo_index(table_name, col_name):
         key = table_name + Constants.MULTI_KEY_CONCATENATION_STRING + col_name
         # create hypo index if it is not already present
-        """if key not in PostgresQueryHandler.hypo_indexes_dict:
-            cursor = PostgresQueryHandler.__get_default_connection().cursor()
-            #print('setting index', table_name, col_name)
-            # replace placeholders in the create hypo index query with table name and column name
-            cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
-            returned_index_id = cursor.fetchone()
-            print('fetchall', cursor.fetchall(), returned_index_id )
-            cursor.close()
-            PostgresQueryHandler.hypo_indexes_dict[key] = returned_index_id[0]"""
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
-        # print('setting index', table_name, col_name)
         # replace placeholders in the create hypo index query with table name and column name
         cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
         returned_index_id = cursor.fetchone()
-        #print('fetchall', cursor.fetchall(), returned_index_id)
         cursor.close()
 
     @staticmethod
@@ -154,7 +134,6 @@ class PostgresQueryHandler:
     def remove_all_hypo_indexes():
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_REMOVE_ALL_HYPO_INDEXES)
-        #print(cursor.fetchall())
         cursor.close()
 
     @staticmethod
@@ -168,7 +147,6 @@ class PostgresQueryHandler:
     def check_hypo_indexes():
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_CHECK_HYPO_INDEXES)
-        #print(cursor.fetchall())
         cursor.close()
 
     @staticmethod
@@ -176,7 +154,6 @@ class PostgresQueryHandler:
         #PostgresQueryHandler.check_hypo_indexes()
         explain_plan = ' \n'.join(map(str, result))
         # extract cost
-        #print(explain_plan)
         cost_pattern = "cost=(.*)row"
         cost_match = re.search(cost_pattern, explain_plan)
         if cost_match is not None:

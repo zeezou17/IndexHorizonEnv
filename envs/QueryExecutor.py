@@ -158,8 +158,6 @@ class QueryExecutor:
                                                                get_explain_plan=True)
             query_cost_with_idx_advisor_suggestion += PostgresQueryHandler.add_query_cost_suggested_indexes(
                 result)
-        #print('Agent Cost')
-        #print(query_cost_with_idx_advisor_suggestion)
         return observation_space, query_cost_with_idx_advisor_suggestion
 
     @staticmethod

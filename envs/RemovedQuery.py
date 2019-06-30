@@ -1,4 +1,4 @@
-from typing import Set, Dict
+'''from typing import Set, Dict
 import sqlparse
 from pglast import Node, parse_sql
 from pglast.node import List
@@ -67,3 +67,4 @@ class unused_Query:
             # name will hold conditional operator value
             # lexpr will hold left side expression
             # rexpr will hold right side expression
+'''
