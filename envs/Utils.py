@@ -11,7 +11,7 @@ class Utils:
     def read_config_data(section: str):
         # read database config from config file
         config = configparser.ConfigParser()
-        config.read('/home/bhuvanesh/Documents/indexHorizonEnv/config.ini')
+        config.read('/home/zeeshan/Downloads/gym/gym/envs/postgres_idx_advisor/config.ini')
         return dict(config.items(section))
 
     @staticmethod

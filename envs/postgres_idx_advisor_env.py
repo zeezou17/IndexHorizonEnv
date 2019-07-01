@@ -1,7 +1,7 @@
 import gym
 from gym import spaces
 import numpy as np
-import random
+import time
 from gym.envs.postgres_idx_advisor.envs.QueryExecutor import QueryExecutor
 
 
@@ -31,12 +31,17 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.value = 0
         self.value_prev = 999
         #self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61), dtype=np.float32)
+        # All the calculations are in (8,61) Dopamine does not refer to this function.
+        # However Horizon and Ray refer this function and they need the space as (8,61,1)
+        # Hence it is defined as (8,61,1). However the calculations are in (8,61)
         self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61, 1), dtype=np.float32)
         self.queries_list = None
         self.all_predicates = None
         self.idx_advisor_suggested_indexes = None
         self.evaluation_mode = None
         self.agent = None
+        self.start_time = None
+        self.end_time = None
 
 
     def set_eval_mode(self, eval_mode):
@@ -64,6 +69,7 @@ class PostgresIdxAdvisorEnv(gym.Env):
         if self.evaluation_mode:
             self.observation, self.cost_initial, self.cost_idx_advisor, k_value = self.init_observation(test_file, 0)
             self.k = k_value
+            self.start_time = time.time()
 
         # Enters training mode
         elif not self.evaluation_mode:
@@ -152,6 +158,10 @@ class PostgresIdxAdvisorEnv(gym.Env):
             self.observation = self.observation.flatten().reshape(8, 61, 1)
 
         QueryExecutor.check_step_variables(self.observation, cost_agent_idx, switch_correct, self.k, self.k_idx, self.value, self.value_prev, self.game_over, self.reward, self.counter, action)
+
+        if self.evaluation_mode and self.game_over:
+            self.end_time = time.time()
+            print('Total Time taken:', self.end_time-self.start_time)
 
         return self.observation, self.reward, self.game_over, {}
 
