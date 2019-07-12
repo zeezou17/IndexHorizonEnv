@@ -29,12 +29,15 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.cost_prev = None
         self.action_space = spaces.Discrete(60)
         self.value = 0
-        self.value_prev = 999
-        #self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61), dtype=np.float32)
+        self.value_prev = float("inf")
+
         # All the calculations are in (8,61) Dopamine does not refer to this function.
-        # However Horizon and Ray refer this function and they need the space as (8,61,1)
+        # Horizon and Ray refer this function and they need the space as (8,61,1)
         # Hence it is defined as (8,61,1). However the calculations are in (8,61)
+
+        # self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61), dtype=np.float32)
         self.observation_space = spaces.Box(low=0, high=1, shape=(8, 61, 1), dtype=np.float32)
+
         self.queries_list = None
         self.all_predicates = None
         self.idx_advisor_suggested_indexes = None
@@ -47,16 +50,17 @@ class PostgresIdxAdvisorEnv(gym.Env):
     def set_eval_mode(self, eval_mode):
         """
         :param eval_mode: if evaluation phase then True else False
-            Sets the evaluation mode returned by the agent"""
+            Sets the evaluation mode returned by the agent
+        """
         self.evaluation_mode = eval_mode
 
     def reset(self):
         """
-            :return: initial observation
-                Reset is supposed to be used after every game end criteria
-                Its purpose is to reinitialize the necessary variables
-                Important variables: observation, initial cost, best cost, k (No of indexes that the agent is allowed to set)
-                k_offset is the offset for the different number of indexes that agent and env needs to be tested on
+        :return: initial observation
+            Reset is supposed to be used after every game end criteria
+            Its purpose is to reinitialize the necessary variables
+            Important variables: observation, initial cost, best cost, k (No of indexes that the agent is allowed to set)
+            k_offset is the offset for the different number of indexes that agent and env needs to be tested on
         """
         self.reward = 0.0
         self.game_over = False
@@ -65,13 +69,13 @@ class PostgresIdxAdvisorEnv(gym.Env):
 
         k_offset, train_file, test_file, self.agent = QueryExecutor.get_gin_properties()
 
-        # Enters Evaluation mode
+        # Conditions for Evaluation mode
         if self.evaluation_mode:
             self.observation, self.cost_initial, self.cost_idx_advisor, k_value = self.init_observation(test_file, 0)
             self.k = k_value
             self.start_time = time.time()
 
-        # Enters training mode
+        # Conditions for training mode
         elif not self.evaluation_mode:
             self.observation, self.cost_initial, self.cost_idx_advisor, k_value = self.init_observation(train_file, k_offset)
             self.k = k_value + k_offset
@@ -80,8 +84,8 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.value = 0.0
         self.value_prev = 1/self.cost_initial
 
+        # Modifies the observation matrix if the agent is not from Dopamine
         if self.agent.lower() != 'dopamine':
-            #print(self.agent, 'flattening')
             self.observation = self.observation.flatten().reshape(8, 61, 1)
 
         return self.observation
@@ -96,28 +100,30 @@ class PostgresIdxAdvisorEnv(gym.Env):
             get_best_cost(): gets the best cost with the number of indexes returned by the index advisor
             get_best_index_combination() : returns the best cost with a limit on the number of indexes
         """
-        self.queries_list, self.all_predicates, self.idx_advisor_suggested_indexes = QueryExecutor.init_variables(filename)
+        self.queries_list, self.all_predicates, self.idx_advisor_suggested_indexes = QueryExecutor.init_variables(
+            filename)
         self.observation = QueryExecutor.create_observation_space(self.queries_list)
         self.cost_initial = QueryExecutor.get_initial_cost(self.queries_list)
-        if k_offset >= 0:
-            self.cost_idx_advisor = QueryExecutor.get_best_cost(self.queries_list, self.idx_advisor_suggested_indexes)
-        elif k_offset < 0:
-            self.cost_idx_advisor = QueryExecutor.get_best_index_combination(self.queries_list, self.idx_advisor_suggested_indexes, len(self.idx_advisor_suggested_indexes)+k_offset)
+        combinations = len(self.idx_advisor_suggested_indexes)
+        if k_offset < 0:
+            combinations = combinations + k_offset
+        self.cost_idx_advisor = QueryExecutor.get_cost_for_top_index_combination(self.queries_list,
+                                                                                 self.idx_advisor_suggested_indexes,
+                                                                                 combinations)
 
         return self.observation, self.cost_initial, self.cost_idx_advisor, len(self.idx_advisor_suggested_indexes)
 
     def _take_action(self, action):
         """
-        :param action:  action returned by the agent
-        :return: returns the new observation
-            Transfers the action to the DB and gets a new state
+        :param action: action returned by the agent
+        :return: new observation, cost after taking the action and validity of the action
+            Transfers the DB translated action to the step function
+        :var switch_correct: it is set to one if the same index(action) was not selected by the agent
         """
-        # Something which takes action and returns te next state with hypothetical indexes set
+
         if self.observation[0, action] != 1:
             self.observation, cost_action = QueryExecutor.generate_next_state(self.queries_list, action, self.observation)
             switch_correct = 1
-        # switch the position at that action to 1
-        # if index is not yet set set switch_correct to 1 else 0
         else:
             cost_action = float("inf")
             switch_correct = 0
@@ -132,6 +138,8 @@ class PostgresIdxAdvisorEnv(gym.Env):
             Each step involves:
                 - Translating agent action to DB
                 - Translating the DB response to agent response
+
+            In each evaluation step measure the time taken by the agent to get the indexes and set them in HypoPG
         """
         self.observation, cost_agent_idx, switch_correct = self._take_action(action)
         if switch_correct == 1 and self.k_idx < self.k:
@@ -153,11 +161,12 @@ class PostgresIdxAdvisorEnv(gym.Env):
         self.k_idx += 1
         self.counter += 1
 
+        # If agent is not dopamine the observation space needs to be modified for Ray and Horizon
         if self.agent.lower() != 'dopamine':
-            #print(self.agent, 'flattening')
             self.observation = self.observation.flatten().reshape(8, 61, 1)
 
-        QueryExecutor.check_step_variables(self.observation, cost_agent_idx, switch_correct, self.k, self.k_idx, self.value, self.value_prev, self.game_over, self.reward, self.counter, action)
+        # Remove the comments if you want to track what the environment is doing
+        # QueryExecutor.check_step_variables(self.observation, cost_agent_idx, switch_correct, self.k, self.k_idx, self.value, self.value_prev, self.game_over, self.reward, self.counter, action)
 
         if self.evaluation_mode and self.game_over:
             self.end_time = time.time()

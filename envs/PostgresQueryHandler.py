@@ -7,7 +7,7 @@ import re
 import numpy as np
 
 class PostgresQueryHandler:
-    # attribute which will hold the postgres connection
+    # Attributes which will hold the postgres connection and HypoPG indexes dict
     connection = None
     connectionDefault = None
     connectionAgent = None
@@ -15,11 +15,14 @@ class PostgresQueryHandler:
 
     @staticmethod
     def __get_connection():
-        # create connection only if it is not done before
+        """
+        :returns: Creates connection to postgres which is configured with postgres_idx_advisor.so
+        """
+        # Create connection only if it is not done before
         if PostgresQueryHandler.connection is None:
-            # connect to postgres
+            # Connect to postgres
             try:
-                # read database config from config file
+                # Read database config from config file
                 database_config = Utils.read_config_data(Constants.CONFIG_DATABASE)
                 # connect to postgres
                 PostgresQueryHandler.connection = psycopg2.connect(database=database_config["dbname"],
@@ -28,7 +31,7 @@ class PostgresQueryHandler:
                                                                    host=database_config["host"],
                                                                    port=database_config["port"])
                 PostgresQueryHandler.connection.autocommit = True
-            # capture connection exception
+            # Capture connection exception
             except psycopg2.OperationalError as exception:
                 print('Unable to connect to postgres \n Reason: {0}').format(str(exception))
                 # exit code
@@ -38,35 +41,48 @@ class PostgresQueryHandler:
                 # Print PostgreSQL version
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
+                #print("***You are connected to below Postgres database*** \n ", record, "\n")
         return PostgresQueryHandler.connection
 
     @staticmethod
     def __get_default_connection():
+        """
+        :returns: Gets the default connection to Db without postgres_idx_advisor.so
+                  This connection is needed to work with HypoPG
+        """
         if PostgresQueryHandler.connectionDefault is None:
-            # connect to postgres
+            # Connect to postgres
             try:
-                # read database config from config file
+                # Read database config from config file
                 database_config = Utils.read_config_data(Constants.CONFIG_DATABASE)
-                # connect to postgres
+                # Connect to postgres
                 PostgresQueryHandler.connectionDefault = psycopg2.connect(database=database_config["dbname"],
                                                                    user=database_config["user"],
                                                                    password=database_config["password"],
                                                                    host=database_config["host"],
                                                                    port=database_config["port"])
                 PostgresQueryHandler.connectionDefault.autocommit = True
-            # capture connection exception
+            # Capture connection exception
             except psycopg2.OperationalError as exception:
                 print('Unable to connect to postgres \n Reason: {0}').format(str(exception))
-                # exit code
+                # Exit code
                 sys.exit(1)
             else:
                 cursor = PostgresQueryHandler.connectionDefault.cursor()
+                # Print PostgreSQL version
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
+                # print("***You are connected to below Postgres database*** \n ", record, "\n")
         return PostgresQueryHandler.connectionDefault
 
     @staticmethod
     def execute_select_query(query: str, load_index_advisor: bool = False, get_explain_plan: bool = False):
+        """
+        :param query: contains the query that needs to be executed
+        :param load_index_advisor: if true loads the index advisor plugin
+        :param get_explain_plan: if true retrieves the explain plan for the query
+        :returns: the no of rows returned by the query
+        """
         if load_index_advisor:
             cursor = PostgresQueryHandler.__get_connection().cursor()
             cursor.execute(Constants.CREATE_EXTENSION)
@@ -79,11 +95,20 @@ class PostgresQueryHandler:
             query = Constants.QUERY_EXPLAIN_PLAN.format(query)
         cursor.execute(query)
         returned_rows = cursor.fetchall()
+
+        # Uncomment if you want to see the indexes currently set in HypoPG
+        #PostgresQueryHandler.check_hypo_indexes()
+
         cursor.close()
         return returned_rows
 
     @staticmethod
     def get_table_row_count(table_name):
+        """
+
+        :param table_name: name of the table
+        :return: number of rows in the table
+        """
         cursor = PostgresQueryHandler.__get_connection().cursor()
         cursor.execute(Constants.QUERY_FIND_NUMBER_OF_ROWS.format(table_name))
         returned_count = cursor.fetchone()
@@ -92,6 +117,11 @@ class PostgresQueryHandler:
 
     @staticmethod
     def execute_count_query(query):
+        """
+
+        :param query: query string
+        :return: number of rows returned by the query
+        """
         cursor = PostgresQueryHandler.__get_connection().cursor()
         cursor.execute(query)
         returned_count = cursor.fetchone()
@@ -100,6 +130,11 @@ class PostgresQueryHandler:
 
     @staticmethod
     def execute_select_query_and_get_row_count(query):
+        """
+
+        :param query: query string
+        :return: number of rows returned by the query
+        """
         cursor = PostgresQueryHandler.__get_connection().cursor()
         # trim whitespaces and add wrapper query to get count of rows i.e select count(*) from (<QUERY>) table1
         query_to_execute = ' '.join(query.strip().replace('\n', ' ').lower().split())
@@ -111,33 +146,56 @@ class PostgresQueryHandler:
 
     @staticmethod
     def create_hypo_index(table_name, col_name):
+        """
+            Creates Hypo Index using the input
+        """
         key = table_name + Constants.MULTI_KEY_CONCATENATION_STRING + col_name
         # create hypo index if it is not already present
+        """if key not in PostgresQueryHandler.hypo_indexes_dict:
+            cursor = PostgresQueryHandler.__get_default_connection().cursor()
+            #print('setting index', table_name, col_name)
+            # replace placeholders in the create hypo index query with table name and column name
+            cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
+            returned_index_id = cursor.fetchone()
+            print('fetchall', cursor.fetchall(), returned_index_id )
+            cursor.close()
+            PostgresQueryHandler.hypo_indexes_dict[key] = returned_index_id[0]"""
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
+        # print('setting index', table_name, col_name)
         # replace placeholders in the create hypo index query with table name and column name
         cursor.execute(Constants.QUERY_CREATE_HYPO_INDEX.format(table_name, col_name))
         returned_index_id = cursor.fetchone()
+        #print('fetchall', cursor.fetchall(), returned_index_id)
         cursor.close()
 
     @staticmethod
     def remove_hypo_index(table_name, col_name):
+        """
+            Removes the input Hypo Index
+        """
         key = table_name + Constants.MULTI_KEY_CONCATENATION_STRING + col_name
-        # check whether index is already present
+        # Check whether index is already present
         if key in PostgresQueryHandler.hypo_indexes_dict:
             cursor = PostgresQueryHandler.__get_connection().cursor()
-            # retrieve index id from dict and replace the place holder with index id
+            # Retrieve index id from dict and replace the place holder with index id
             cursor.execute(Constants.QUERY_REMOVE_HYPO_INDEX.format(PostgresQueryHandler.hypo_indexes_dict.get(key, 0)))
             cursor.close()
             PostgresQueryHandler.hypo_indexes_dict.pop(key, None)
 
     @staticmethod
     def remove_all_hypo_indexes():
+        """
+            Removes all the Hypo Indexes
+        """
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_REMOVE_ALL_HYPO_INDEXES)
         cursor.close()
 
     @staticmethod
     def get_where_clause_list_for_query(query: str):
+        """
+            Retreives the complete WHERE CLAUSE
+        """
         query_tree = Node(parse_sql(query))
         for tre in query_tree:
             for node in tre.stmt.whereClause:
@@ -145,15 +203,25 @@ class PostgresQueryHandler:
 
     @staticmethod
     def check_hypo_indexes():
+        """
+            Check the indexes present in HypoPG
+        """
         cursor = PostgresQueryHandler.__get_default_connection().cursor()
         cursor.execute(Constants.QUERY_CHECK_HYPO_INDEXES)
+        #print(cursor.fetchall())
         cursor.close()
 
     @staticmethod
     def add_query_cost_suggested_indexes(result):
+        """
+
+        :param result: explain plan
+        :return: query cost from the explain plan
+        """
         #PostgresQueryHandler.check_hypo_indexes()
         explain_plan = ' \n'.join(map(str, result))
         # extract cost
+        #print(explain_plan)
         cost_pattern = "cost=(.*)row"
         cost_match = re.search(cost_pattern, explain_plan)
         if cost_match is not None:

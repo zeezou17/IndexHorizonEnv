@@ -1,6 +1,8 @@
-# This class holds
-#  all constants in the environment package
-#  postgres sql queries
+"""
+    This class holds
+    all constants in the environment package
+    postgres sql queries
+"""
 
 
 class Constants(object):

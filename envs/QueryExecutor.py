@@ -8,61 +8,62 @@ from gym.envs.postgres_idx_advisor.envs.PostgresQueryHandler import PostgresQuer
 from gym.envs.postgres_idx_advisor.envs.Table import Table
 from gym.envs.postgres_idx_advisor.envs.Utils import Utils
 
-# class
+
 class QueryExecutor:
-    # tables_map will hold table name and columne details
+    # tables_map will hold table name and column details
     tables_map: Dict[str, Table] = dict()
     column_map: Dict[str, List[str]] = dict()
 
     @staticmethod
     def initialize_table_information():
-        # get list of tables
+        # Get list of tables
         tables = tuple(Utils.read_config_data(Constants.CONFIG_TABLES).keys())
 
-        # call postgres to get table details from database
+        # Call postgres to get table details from database
         returned_table_details = PostgresQueryHandler.execute_select_query(
             Constants.QUERY_GET_TABLE_DETAILS.format(tables))
 
         for table_column in returned_table_details:
-            # table_column will have
-            #       at position 0: table_name
-            #       at position 1: column_name
-            #       at position 2: data type and size
-            #       at position 3: primary key (true , false)
-
+            """
+                Table_column will have
+                       at position 0: table_name
+                       at position 1: column_name
+                       at position 2: data type and size
+                       at position 3: primary key (true , false)
+            """
             data_type = table_column[2]
             table_name = table_column[0]
             column_name = table_column[1]
 
-            # find column size
-            # fixed length data types are stored in map
+            # Find column size
+            # Fixed length data types are stored in map
             if data_type in Constants.POSTGRES_DATA_TYPE_SIZE_MAP:
                 data_size = Constants.POSTGRES_DATA_TYPE_SIZE_MAP[data_type]
 
-            # if data_type is not present in dict then it is variable length data type ,
-            # data size needs to extracted from the text present data_type
+            # If data_type is not present in dict then it is variable length data type ,
+            # Data size needs to extracted from the text present data_type
             else:
-                # size is present with in brackets
-                # examples : "character varying(44)" , "numeric(15,2)" , "character(25)"
+                # Size is present with in brackets
+                # Examples : "character varying(44)" , "numeric(15,2)" , "character(25)"
 
-                # extract size information
+                # Extract size information
                 from_index = data_type.find("(")
                 to_index = data_type.find(")")
                 temp_text = str(data_type[from_index + 1:to_index])
                 data_size = sum(int(val) for val in temp_text.split(','))
 
-            # check whether map entry exists for table if not create one
+            # Check whether map entry exists for table if not create one
             if table_name not in QueryExecutor.tables_map:
-                # get number of rows add it to table object
+                # Get number of rows add it to table object
                 QueryExecutor.tables_map[table_name] = Table(table_name,
                                                              PostgresQueryHandler.get_table_row_count(table_name))
 
-            # add column  to table object
+            # Add column  to table object
             QueryExecutor.tables_map[table_name].add_column(Column(column_name, data_type, data_size))
-            # check whether map entry exists for column name if not create one
+            # Check whether map entry exists for column name if not create one
             if column_name not in QueryExecutor.column_map:
                 QueryExecutor.column_map[column_name] = list()
-            # add column as key and table as value for easier find
+            # Add column as key and table as value for easier find
             QueryExecutor.column_map[column_name].append(table_name)
 
     @staticmethod
@@ -109,31 +110,6 @@ class QueryExecutor:
         print('Suggested indexes',idx_advisor_suggested_indexes)
         return queries_list, all_predicates, idx_advisor_suggested_indexes
 
-
-    @staticmethod
-    def get_best_cost(queries_list, idx_advisor_suggested_indexes):
-        """
-        :param queries_list: list of queries
-        :param idx_advisor_suggested_indexes: suggested indexes by the index advisor
-        :return: cost of the queries using the suggested indexes
-        """
-        for suggested_indexes in idx_advisor_suggested_indexes:
-            table_name, col_name = suggested_indexes.split(Constants.MULTI_KEY_CONCATENATION_STRING)
-            PostgresQueryHandler.create_hypo_index(table_name, col_name)
-
-        PostgresQueryHandler.check_hypo_indexes()
-
-        query_cost_with_idx_advisor_suggestion = 0.0
-        for query in queries_list:
-            result = PostgresQueryHandler.execute_select_query(query.query_string, load_index_advisor=False,
-                                                               get_explain_plan=True)
-            query_cost_with_idx_advisor_suggestion += PostgresQueryHandler.add_query_cost_suggested_indexes(
-                result)
-        print('Best Total Cost')
-        print(query_cost_with_idx_advisor_suggestion)
-        PostgresQueryHandler.remove_all_hypo_indexes()
-        return query_cost_with_idx_advisor_suggestion
-
     @staticmethod
     def generate_next_state(queries_list, action, observation_space):
         """
@@ -158,6 +134,8 @@ class QueryExecutor:
                                                                get_explain_plan=True)
             query_cost_with_idx_advisor_suggestion += PostgresQueryHandler.add_query_cost_suggested_indexes(
                 result)
+        #print('Agent Cost')
+        #print(query_cost_with_idx_advisor_suggestion)
         return observation_space, query_cost_with_idx_advisor_suggestion
 
     @staticmethod
@@ -167,7 +145,7 @@ class QueryExecutor:
     @staticmethod
     def get_gin_properties():
         """
-        :return: returns the offset, train file and test file locations
+        :returns: offset, train file and test file locations
         """
         gin_config = Utils.read_config_data(Constants.CONFIG_GINPROPERTIES)
         k_offset = gin_config["k_offset"]
@@ -194,7 +172,7 @@ class QueryExecutor:
         print('action', action)
 
     @staticmethod
-    def get_best_index_combination(queries_list, idx_advisor_suggested_indexes, k):
+    def get_cost_for_top_index_combination(queries_list, idx_advisor_suggested_indexes, k):
         """
         :param queries_list: list of queries on which the cost should be calculated
         :param idx_advisor_suggested_indexes: indexes suggested by the advisor
@@ -203,7 +181,7 @@ class QueryExecutor:
             Gets the combination of the specified k value and calculates the best cost
         """
         index_combinations = [list(x) for x in itertools.combinations(idx_advisor_suggested_indexes, k)]
-        max_cost = float("inf")
+        min_cost = float("inf")
         best_index_combination = []
         for val in index_combinations:
             current_cost = 0.0
@@ -217,10 +195,11 @@ class QueryExecutor:
                 current_cost += PostgresQueryHandler.add_query_cost_suggested_indexes(
                     result)
 
-            if current_cost < max_cost:
-                max_cost = current_cost
+            if current_cost < min_cost:
+                min_cost = current_cost
                 best_index_combination = val
             PostgresQueryHandler.remove_all_hypo_indexes()
         print('best_index_combination', best_index_combination)
-        print('max cost', max_cost)
-        return max_cost
+        print('max cost', min_cost)
+
+        return min_cost

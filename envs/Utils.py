@@ -9,13 +9,25 @@ import json
 class Utils:
     @staticmethod
     def read_config_data(section: str):
-        # read database config from config file
+        """
+
+        :param section: which section of config file needs to be parsed
+        :return: dictionalry of the items present in config file
+            Reads database config from config file
+        """
+
         config = configparser.ConfigParser()
         config.read('/home/zeeshan/Downloads/gym/gym/envs/postgres_idx_advisor/config.ini')
         return dict(config.items(section))
 
     @staticmethod
     def get_queries_from_sql_file(columns_map: Dict[str, List[str]], tables_map: Dict[str, Table], filename):
+        """
+        :param columns_map: Dictionary of columns for the specific table
+        :param tables_map: Dictionary of tables in DB
+        :param filename: Contains queries
+        :return: list of queries, its predicates and the advisor suggested indexes
+        """
         Query.reset()
         sql_file = open(filename, 'r')
         file_content = sql_file.read()
@@ -29,6 +41,9 @@ class Utils:
 
     @staticmethod
     def read_json_action_space():
+        """
+        :return: the action to table columns mapping
+        """
         gin_config = Utils.read_config_data(Constants.CONFIG_GINPROPERTIES)
         action_space_json = gin_config["action_space_json"]
 

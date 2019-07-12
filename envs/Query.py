@@ -5,10 +5,10 @@ import sqlparse
 import re
 from gym.envs.postgres_idx_advisor.envs import PostgresQueryHandler
 
-
-# this class parses only simple queries to extract each where condition and form a seperate query
-#  which is used in later stages to find selectivity of each column
-
+"""
+This class parses only simple queries to extract each where condition and form a separate query
+which is used in later stages to find selectivity of each column
+"""
 
 class Query:
     query_string: str
@@ -21,11 +21,20 @@ class Query:
     query_cost_with_idx_advisor_suggestion: float
 
     def __init__(self, query_string, columns_map: Dict[str, List[str]], tables_map: Dict[str, Table]):
-        # parse the query with sql parse to remove comments and correct identation for efficient parsing
+        """
+
+        :param query_string: contains the queries in string format
+        :param columns_map: Dictionary of columns for the specific table
+        :param tables_map: Dictionary of tables in DB
+
+            Performs parsing of queries and to retrieve predicates selectivity and indexes suggested by the advisor
+
+        """
+        # Parse the query with sql parse to remove comments and correct indentation for efficient parsing
         self.query_string = sqlparse.format(query_string, strip_comments=True, reindent=True, wrap_after=100).strip()
         self.where_clause_columns_query = dict()
-        # split to get contents of different sections of query, i.e from section, where clause, order by , group by
-        # we need only from and where clause section to find the selectivity of each predicate
+        # Split to get contents of different sections of query, i.e from section, where clause, order by , group by
+        # We need only from and where clause section to find the selectivity of each predicate
         from_section_start_pos = 0
         from_section_end_pos = -0
         where_section_start_pos = 0
@@ -49,16 +58,16 @@ class Query:
             cur_index_count = cur_index_count + len(line) + 1  # +1 added for new line
         from_section = self.query_string[from_section_start_pos:from_section_end_pos]
         where_section = self.query_string[where_section_start_pos:where_section_end_pos]
-        # extract all table names which is separated by comma
+        # Extract all table names which is separated by comma
         for cur_tbl_text in re.split(",", from_section):
-            # table may have alias first remove unwanted whitespace to do this check
+            # Table may have alias first remove unwanted whitespace to do this check
             tbl_data = ' '.join(cur_tbl_text.strip().split()).split(' ')
             if len(tbl_data) == 1:
                 table_alias_dict.update({tbl_data[0]: tbl_data[0]})
             else:
                 table_alias_dict.update({tbl_data[1]: tbl_data[0]})
-        # extra where section data
-        # get individual predicates
+        # Extra where section data
+        # Get individual predicates
         for predicate_line in where_section.splitlines():
             predicate_line = predicate_line.strip().replace('\n', '').replace('\r', '')
             if re.search(Constants.POSTGRES_BOOLEAN_OPERATIONS_LIST_AS_STRING, predicate_line) is not None:
@@ -70,25 +79,29 @@ class Query:
                                           ' '.join(predicate.split()))
             left_expr = splitted_predicate[0].strip()
             is_predicate_used_for_selectivity = True
-            # right expr is present only if len > 1
+            # Right expr is present only if len > 1
             if len(splitted_predicate) > 1:
                 right_expr = splitted_predicate[1]
-                # check right side predicate whether it has further expression or just a value/column name
-                # if further expression present no need to do further checks for right expr as
-                # it is assumed that queries(which satisfy right expr conditon) used in this project will
-                # hold only values not column names
-                # example : o_orderdate < ---date '1994-01-01' + interval '1' year---
-                # string between '---' is the right (sub) expr
-                # there can be scenarios where expr might contain a string value with spaces  example
-                # 'MIDDLE EAST' , this should be splitted
+                """
+                    Check right side predicate whether it has further expression or just a value/column name
+                    if further expression present no need to do further checks for right expr as
+                    it is assumed that queries(which satisfy right expr conditon) used in this project will
+                    hold only values not column names
+                    example : o_orderdate < ---date '1994-01-01' + interval '1' year---
+                    string between '---' is the right (sub) expr
+                    there can be scenarios where expr might contain a string value with spaces  example
+                    'MIDDLE EAST' , this should be splitted
+                """
 
                 splitted_right_expr = re.split(''' (?=(?:[^'"]|'[^']*'|"[^"]*")*$)''', right_expr.strip())
                 if len(splitted_right_expr) > 1:
                     is_predicate_used_for_selectivity = True
                 else:
-                    # check whether right expression is a join or some value if join then this predicate
-                    # can be ignored from selectivity calculation
-                    # if below condition is satisfied then it is a  join and it can not be considered for selectivity
+                    """
+                        Check whether right expression is a join or some value if join then this predicate
+                        can be ignored from selectivity calculation
+                        if below condition is satisfied then it is a  join and it can not be considered for selectivity
+                    """
                     if not self.find_matching_table_for_column(columns_map, table_alias_dict,
                                                                splitted_right_expr[0]) == '':
                         is_predicate_used_for_selectivity = False
@@ -100,9 +113,9 @@ class Query:
                 self.where_clause_columns_query[key] = value
                 Query.all_predicates.add(key)
                 self.calculate_predicate_selectivity(key, value, tables_map)
-        # run explain plan to get query cost without indexes and index suggestions from pg_idx_advisor
+        # Run explain plan to get query cost without indexes and index suggestions from pg_idx_advisor
 
-        # get explain plan
+        # Get explain plan
         result = PostgresQueryHandler.PostgresQueryHandler.execute_select_query(self.query_string, load_index_advisor=True, get_explain_plan=True)
         explain_plan = ' \n'.join(map(str, result))
         #print(explain_plan)
@@ -114,8 +127,10 @@ class Query:
             self.query_cost_without_index = cost_match.group(1).split('..')[-1]
 
         for match in re.finditer(index_pattern, explain_plan):
-            # this statment will filter create index statements and
-            # then will extract table name and column name in a array at pos 0 and 1 respectively
+            """
+                This statment will filter create index statements and
+                then will extract table name and column name in a array at pos 0 and 1 respectively
+            """
             table_col = explain_plan[match.start():match.end()].split(' on ')[1].replace('(', ' ').replace(')',
                                                                                                            '').strip().split(
                 ' ')
@@ -126,6 +141,10 @@ class Query:
     @staticmethod
     def find_matching_table_for_column(columns_map: Dict[str, List[str]], table_alias_dict: Dict[str, str],
                                        col_name: str):
+        """
+            Helps to parse queries and find table names if the same column name exists in the query
+            using the alias name
+        """
         table_str: str = ''
         if col_name.find('.') != -1:
             table_str = table_alias_dict.get(col_name.split('.')[0]) + ' ' + col_name.split('.')[0]
@@ -142,15 +161,30 @@ class Query:
 
     @staticmethod
     def reset():
+        """
+            Clears the predicates and suggested indexes set
+        """
         Query.all_predicates.clear()
         Query.idx_advisor_suggested_indexes.clear()
 
     @staticmethod
     def add_idx_advisor_suggested_indexes(table_name: str, col_name: str):
+        """
+
+        :param table_name: contains table name
+        :param col_name: contains column name
+            Adds the input table and coumn name to the suggested indexes set
+        """
         Query.idx_advisor_suggested_indexes.add(table_name + Constants.MULTI_KEY_CONCATENATION_STRING + col_name)
 
     @staticmethod
     def calculate_predicate_selectivity(key: str, query: str, tables_map: Dict[str, Table]):
+        """
+        :param key: contains the predicate
+        :param query: contains the query
+        :param tables_map: Dictionary of table names
+            Sets the selectivity for the particular column name
+        """
         # check whether predicate selectivity is already calculated, if not calculate
         if key not in Query.selectivity_for_where_clause_columns:
             # get number of rows for the predicate
